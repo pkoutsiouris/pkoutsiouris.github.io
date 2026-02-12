@@ -162,7 +162,7 @@
                         <table class="w-full text-left">
                             <thead class="bg-slate-50/50 border-b border-slate-100">
                                 <tr>
-                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Επισκέπτης</th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Επισκέπτης & Σημειώσεις</th>
                                     <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Ημερομηνίες</th>
                                     <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Άτομα</th>
                                     <th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Ποσό</th>
@@ -334,6 +334,32 @@
         </div>
     </div>
 
+    <!-- Modal Επεξεργασίας Σημειώσεων -->
+    <div id="edit-notes-modal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm no-print">
+        <div class="bg-white rounded-3xl w-full max-w-lg p-8 md:p-10 shadow-2xl modal-animate">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-black text-slate-800">Επεξεργασία Σημειώσεων</h2>
+                    <p id="edit-notes-guest" class="text-slate-500 text-sm mt-1">Επισκέπτης: ...</p>
+                </div>
+                <button onclick="toggleNotesModal(false)" class="bg-slate-100 hover:bg-slate-200 text-slate-500 p-2 rounded-full transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            
+            <input type="hidden" id="edit-notes-id">
+            <div class="space-y-4">
+                <label class="block text-sm font-bold text-slate-700 uppercase tracking-tight">Κείμενο Σημειώσεων</label>
+                <textarea id="edit-notes-textarea" rows="8" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition text-base" placeholder="Προσθέστε ή αλλάξτε τις σημειώσεις εδώ..."></textarea>
+            </div>
+            
+            <div class="mt-8 flex gap-3">
+                <button onclick="toggleNotesModal(false)" class="flex-1 px-6 py-4 border-2 border-slate-100 rounded-2xl text-slate-500 font-bold hover:bg-slate-50 transition">Ακύρωση</button>
+                <button onclick="saveUpdatedNotes()" class="flex-[2] px-6 py-4 bg-blue-600 text-white rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition">Ενημέρωση</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentDate = new Date();
         let bookings = JSON.parse(localStorage.getItem('vacation_bookings_v2')) || [];
@@ -442,6 +468,35 @@
             }
         }
 
+        // --- Διαχείριση Modal Σημειώσεων ---
+        function toggleNotesModal(show) {
+            document.getElementById('edit-notes-modal').style.display = show ? 'flex' : 'none';
+        }
+
+        function openEditNotes(id) {
+            const booking = bookings.find(b => b.id === id);
+            if(!booking) return;
+            
+            document.getElementById('edit-notes-id').value = id;
+            document.getElementById('edit-notes-guest').textContent = `Επισκέπτης: ${booking.guestName}`;
+            document.getElementById('edit-notes-textarea').value = booking.notes || "";
+            toggleNotesModal(true);
+        }
+
+        function saveUpdatedNotes() {
+            const id = parseInt(document.getElementById('edit-notes-id').value);
+            const newNotes = document.getElementById('edit-notes-textarea').value;
+            
+            const index = bookings.findIndex(b => b.id === id);
+            if (index !== -1) {
+                bookings[index].notes = newNotes;
+                localStorage.setItem('vacation_bookings_v2', JSON.stringify(bookings));
+                toggleNotesModal(false);
+                renderApp();
+            }
+        }
+        // -----------------------------------
+
         function isDateAvailable(newCheckIn, newCheckOut) {
             const start = new Date(newCheckIn);
             const end = new Date(newCheckOut);
@@ -542,12 +597,11 @@
                     <td class="px-6 py-4">
                         <div class="flex flex-col">
                             <div class="font-bold text-slate-800">${b.guestName}</div>
-                            ${b.notes ? `
-                                <div class="flex items-center gap-1 mt-1">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z"/><path d="M15 3v6h6"/></svg>
-                                    <span class="text-[10px] text-slate-400 truncate max-w-[150px] italic">${b.notes}</span>
-                                </div>
-                            ` : ''}
+                            <div class="flex items-center gap-2 mt-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z"/><path d="M15 3v6h6"/></svg>
+                                <span class="text-[11px] text-slate-400 truncate max-w-[140px] italic">${b.notes || 'Καμία σημείωση'}</span>
+                                <button onclick="openEditNotes(${b.id})" class="text-[10px] text-blue-500 hover:text-blue-700 font-bold uppercase tracking-wider md:opacity-0 group-hover:opacity-100 transition-opacity">Επεξεργασία</button>
+                            </div>
                         </div>
                     </td>
                     <td class="px-6 py-4">
