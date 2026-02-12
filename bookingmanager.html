@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vacation Rental Booking Manager Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/gr.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            border-left: 1px solid #e2e8f0;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .day-cell { 
+            height: 100px; 
+            transition: all 0.2s; 
+            border-right: 1px solid #e2e8f0; 
+            border-bottom: 1px solid #e2e8f0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        @media (min-width: 768px) {
+            .day-cell { height: 120px; }
+        }
+
+        .day-cell:hover { background-color: #f8fafc; cursor: pointer; }
+        
+        .booked { background-color: #f0fdf4; }
+        .booked::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background-color: #22c55e;
+        }
+        
+        .today { 
+            background-color: #eff6ff !important; 
+            box-shadow: inset 0 0 0 2px #3b82f6;
+            z-index: 10;
+        }
+        
+        .check-in-today { border-left: 4px solid #3b82f6 !important; }
+        .check-out-today { border-left: 4px solid #ef4444 !important; }
+        
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: white; padding: 0; margin: 0; }
+            .max-w-7xl { max-width: 100%; width: 100%; margin: 0; padding: 0; }
+            .print-only { display: block !important; }
+            table { width: 100% !important; border-collapse: collapse !important; }
+            th, td { border: 1px solid #ddd !important; padding: 12px !important; }
+            .print-header { display: flex !important; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; margin-bottom: 30px; padding-bottom: 10px; }
+        }
+
+        .print-only { display: none; }
+
+        .modal-animate {
+            animation: modalScale 0.2s ease-out;
+        }
+        @keyframes modalScale {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+    <div id="app" class="max-w-7xl mx-auto p-4 md:p-8">
+        
+        <div class="print-only print-header">
+            <div>
+                <h1 class="text-2xl font-bold">Booking Manager Pro</h1>
+                <p class="text-sm">Αναφορά Κρατήσεων & Εσόδων</p>
+            </div>
+            <div class="text-right text-sm">
+                <p>Ημερομηνία Εκτύπωσης: <span id="print-date"></span></p>
+            </div>
+        </div>
+
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 no-print">
+            <div>
+                <h1 class="text-4xl font-extrabold text-slate-800 tracking-tight">Booking Manager <span class="text-blue-600">Pro</span></h1>
+                <p class="text-slate-500 text-sm">Ολοκληρωμένο σύστημα διαχείρισης καταλύματος</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="window.print()" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl font-semibold shadow-sm transition flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                    Εκτύπωση / PDF
+                </button>
+                <button onclick="toggleModal(true)" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold shadow-md transition flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Νέα Κράτηση
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 no-print">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Συνολικά Έσοδα</p>
+                <h3 id="stat-revenue" class="text-2xl font-bold text-slate-800">€0</h3>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Κρατήσεις</p>
+                <h3 id="stat-count" class="text-2xl font-bold text-slate-800">0</h3>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Διανυκτερεύσεις</p>
+                <h3 id="stat-nights" class="text-2xl font-bold text-slate-800">0</h3>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <p class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Μέση Τιμή / Νύχτα</p>
+                <h3 id="stat-avg" class="text-2xl font-bold text-slate-800">€0</h3>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-8">
+            <div class="xl:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden no-print">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                    <h2 id="current-month-display" class="text-xl font-bold text-slate-800 uppercase tracking-wide">...</h2>
+                    <div class="flex gap-2">
+                        <button onclick="changeMonth(-1)" class="p-2 hover:bg-slate-50 rounded-lg border border-slate-200 transition">❮</button>
+                        <button onclick="currentDate = new Date(); renderApp();" class="px-4 py-2 hover:bg-slate-50 rounded-lg border border-slate-200 text-sm font-medium transition">Σήμερα</button>
+                        <button onclick="changeMonth(1)" class="p-2 hover:bg-slate-50 rounded-lg border border-slate-200 transition">❯</button>
+                    </div>
+                </div>
+                <div id="calendar-body" class="calendar-grid bg-white"></div>
+            </div>
+
+            <div class="space-y-6 no-print">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <h2 class="text-sm font-bold mb-4 flex items-center gap-2 text-blue-700 uppercase tracking-wider">
+                        <span class="w-1.5 h-4 bg-blue-600 rounded-full"></span>
+                        Προσεχείς Αφίξεις
+                    </h2>
+                    <div id="arrivals-list" class="space-y-3 max-h-[250px] overflow-y-auto pr-2 custom-scroll"></div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <h2 class="text-sm font-bold mb-4 flex items-center gap-2 text-rose-700 uppercase tracking-wider">
+                        <span class="w-1.5 h-4 bg-rose-600 rounded-full"></span>
+                        Προσεχείς Αναχωρήσεις
+                    </h2>
+                    <div id="departures-list" class="space-y-3 max-h-[250px] overflow-y-auto pr-2 custom-scroll"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 print-only">
+            <h2 class="text-xl font-bold text-slate-800 mb-6 border-b border-slate-300 pb-2 uppercase tracking-wide">Κατάλογος Κρατήσεων</h2>
+            <table class="w-full text-left border-collapse border border-slate-300">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-700">
+                        <th class="p-4 border border-slate-300 font-bold text-xs uppercase tracking-wider">Ονοματεπώνυμο Επισκέπτη</th>
+                        <th class="p-4 border border-slate-300 font-bold text-xs uppercase tracking-wider">Ημ. Άφιξης</th>
+                        <th class="p-4 border border-slate-300 font-bold text-xs uppercase tracking-wider">Ημ. Αναχώρησης</th>
+                        <th class="p-4 border border-slate-300 font-bold text-xs uppercase tracking-wider text-center">Άτομα</th>
+                        <th class="p-4 border border-slate-300 font-bold text-xs uppercase tracking-wider text-right">Συνολικό Ποσό</th>
+                    </tr>
+                </thead>
+                <tbody id="print-bookings-table">
+                </tbody>
+            </table>
+            
+            <div class="mt-8 grid grid-cols-2 gap-8 border-t-2 border-slate-800 pt-6">
+                <div>
+                    <p class="text-sm text-slate-600">Συνολικός αριθμός κρατήσεων: <span id="print-total-count" class="font-bold">0</span></p>
+                    <p class="text-sm text-slate-600">Συνολικές διανυκτερεύσεις: <span id="print-total-nights" class="font-bold">0</span></p>
+                </div>
+                <div class="text-right">
+                    <p class="text-2xl font-black text-slate-900">ΓΕΝΙΚΟ ΣΥΝΟΛΟ: <span id="print-total-revenue">€0</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="booking-modal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm no-print">
+        <div class="bg-white rounded-3xl w-full max-w-xl p-8 md:p-10 shadow-2xl modal-animate overflow-y-auto max-h-[95vh]">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 class="text-3xl font-black text-slate-800">Νέα Κράτηση</h2>
+                    <p class="text-slate-500 text-sm mt-1">Στοιχεία διαμονής και τιμολόγησης</p>
+                </div>
+                <button onclick="toggleModal(false)" class="bg-slate-100 hover:bg-slate-200 text-slate-500 p-2 rounded-full transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            
+            <form id="booking-form" onsubmit="saveBooking(event)">
+                <div class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-tight">Ονοματεπώνυμο Επισκέπτη</label>
+                            <input type="text" id="guest-name" placeholder="π.χ. Γιάννης Παπαδόπουλος" required class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition text-lg">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-tight">Επισκέπτες</label>
+                            <input type="number" id="guest-count" value="1" min="1" oninput="calculateTotal()" required class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:bg-white focus:border-blue-500 outline-none transition text-lg text-center">
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-tight">Άφιξη</label>
+                            <input type="text" id="check-in" placeholder="ΗΗ/ΜΜ/ΕΕΕΕ" required class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:bg-white focus:border-blue-500 outline-none transition text-lg cursor-pointer">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-tight">Αναχώρηση</label>
+                            <input type="text" id="check-out" placeholder="ΗΗ/ΜΜ/ΕΕΕΕ" required class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 focus:bg-white focus:border-blue-500 outline-none transition text-lg cursor-pointer">
+                        </div>
+                    </div>
+
+                    <div class="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex justify-between items-center">
+                        <span class="text-sm font-bold text-blue-800 uppercase">Σύνολο Διανυκτερεύσεων:</span>
+                        <span id="nights-count-display" class="text-xl font-black text-blue-600">0</span>
+                    </div>
+
+                    <div class="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
+                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest">Ρυθμίσεις Τιμολόγησης</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Βασική Τιμή / νύχτα</label>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">€</span>
+                                    <input type="number" id="base-price" value="110" step="0.01" oninput="calculateTotal()" class="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-4 py-3 focus:border-blue-500 outline-none transition">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Καλύπτει έως (άτομα)</label>
+                                <input type="number" id="base-guest-limit" value="2" min="1" oninput="calculateTotal()" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:border-blue-500 outline-none transition">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Επιπλέον Χρέωση ανά άτομο ανά νύχτα</label>
+                            <div class="relative">
+                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">€</span>
+                                <input type="number" id="extra-guest-fee" value="10" step="0.01" oninput="calculateTotal()" class="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-4 py-3 focus:border-blue-500 outline-none transition">
+                            </div>
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-200">
+                            <label class="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wider">Έκπτωση (Προαιρετικά)</label>
+                            <div class="flex gap-2">
+                                <div class="relative flex-1">
+                                    <input type="number" id="discount-value" value="0" step="0.01" oninput="calculateTotal()" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:border-blue-500 outline-none transition">
+                                </div>
+                                <select id="discount-type" onchange="calculateTotal()" class="bg-white border border-slate-200 rounded-xl px-3 py-3 font-bold text-slate-600 outline-none focus:border-blue-500">
+                                    <option value="percent">%</option>
+                                    <option value="fixed">€</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <div class="flex justify-between items-end mb-1">
+                             <label class="block text-sm font-bold text-slate-700 uppercase tracking-tight">Τελικό Κόστος</label>
+                             <span id="original-price-display" class="text-xs text-slate-400 line-through font-medium hidden">€0.00</span>
+                        </div>
+                        <div class="relative">
+                            <span class="absolute left-5 top-1/2 -translate-y-1/2 text-blue-600 font-bold">€</span>
+                            <input type="number" id="total-price" placeholder="0.00" step="0.01" required class="w-full bg-blue-50/50 border-2 border-blue-200 rounded-2xl pl-10 pr-5 py-5 focus:bg-white focus:border-blue-500 outline-none transition text-2xl font-black text-blue-700">
+                        </div>
+                        <p id="calculation-breakdown" class="text-slate-400 text-[11px] mt-2 italic px-2"></p>
+                    </div>
+                </div>
+                
+                <div class="mt-8 flex flex-col md:flex-row gap-4">
+                    <button type="button" onclick="toggleModal(false)" class="order-2 md:order-1 flex-1 px-6 py-4 border-2 border-slate-100 rounded-2xl text-slate-500 font-bold hover:bg-slate-50 transition">Ακύρωση</button>
+                    <button type="submit" class="order-1 md:order-2 flex-[2] px-6 py-4 bg-blue-600 text-white rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition">Αποθήκευση</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentDate = new Date();
+        let bookings = JSON.parse(localStorage.getItem('vacation_bookings_v2')) || [];
+        const monthNames = ["Ιανουάριος", "Φεβρουάριος", "Μάρτιος", "Απρίλιος", "Μάιος", "Ιούνιος", "Ιούλιος", "Αύγουστος", "Σεπτέμβριος", "Οκτώβριος", "Νοέμβριος", "Δεκέμβριος"];
+
+        let fpIn, fpOut;
+
+        function initDatePickers() {
+            fpIn = flatpickr("#check-in", {
+                dateFormat: "d/m/Y",
+                locale: "gr",
+                allowInput: true,
+                onChange: function(selectedDates) {
+                    if(selectedDates[0]) {
+                        fpOut.set('minDate', selectedDates[0]);
+                        calculateTotal();
+                    }
+                }
+            });
+
+            fpOut = flatpickr("#check-out", {
+                dateFormat: "d/m/Y",
+                locale: "gr",
+                allowInput: true,
+                onChange: function() {
+                    calculateTotal();
+                }
+            });
+        }
+
+        function calculateTotal() {
+            const dateIn = fpIn.selectedDates[0];
+            const dateOut = fpOut.selectedDates[0];
+            const guestCount = parseInt(document.getElementById('guest-count').value) || 1;
+            
+            const basePrice = parseFloat(document.getElementById('base-price').value) || 110;
+            const baseLimit = parseInt(document.getElementById('base-guest-limit').value) || 1;
+            const extraFee = parseFloat(document.getElementById('extra-guest-fee').value) || 0;
+            const discountValue = parseFloat(document.getElementById('discount-value').value) || 0;
+            const discountType = document.getElementById('discount-type').value;
+            
+            const nightsDisplay = document.getElementById('nights-count-display');
+            const totalPriceInput = document.getElementById('total-price');
+            const originalPriceDisplay = document.getElementById('original-price-display');
+            const breakdown = document.getElementById('calculation-breakdown');
+
+            if (dateIn && dateOut) {
+                const diffTime = Math.abs(dateOut - dateIn);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                nightsDisplay.textContent = diffDays;
+                
+                if (diffDays > 0) {
+                    const extraGuests = Math.max(0, guestCount - baseLimit);
+                    const nightlyRate = basePrice + (extraGuests * extraFee);
+                    const subtotal = diffDays * nightlyRate;
+                    
+                    let discountAmount = 0;
+                    if (discountType === 'percent') {
+                        discountAmount = subtotal * (discountValue / 100);
+                    } else {
+                        discountAmount = discountValue;
+                    }
+
+                    const finalTotal = Math.max(0, subtotal - discountAmount);
+                    totalPriceInput.value = finalTotal.toFixed(2);
+                    
+                    if (discountValue > 0) {
+                        originalPriceDisplay.textContent = `€${subtotal.toFixed(2)}`;
+                        originalPriceDisplay.classList.remove('hidden');
+                    } else {
+                        originalPriceDisplay.classList.add('hidden');
+                    }
+
+                    let text = `Ανάλυση: ${diffDays} νύχτες × [€${basePrice}`;
+                    if (extraGuests > 0) text += ` + ${extraGuests} άτομα × €${extraFee}`;
+                    text += `] = €${subtotal.toFixed(2)}`;
+                    if (discountValue > 0) text += ` (-€${discountAmount.toFixed(2)} έκπτωση)`;
+                    breakdown.textContent = text;
+                }
+            } else {
+                nightsDisplay.textContent = "0";
+                totalPriceInput.value = "";
+                breakdown.textContent = "";
+                originalPriceDisplay.classList.add('hidden');
+            }
+        }
+
+        function toISODate(dmy) {
+            if(!dmy) return null;
+            const parts = dmy.split('/');
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+
+        function formatDateForDisplay(dateStr) {
+            if (!dateStr) return '';
+            const [year, month, day] = dateStr.split('-');
+            return `${day}/${month}/${year}`;
+        }
+
+        function toggleModal(show) {
+            const modal = document.getElementById('booking-modal');
+            modal.style.display = show ? 'flex' : 'none';
+            if(!show) {
+                document.getElementById('booking-form').reset();
+                document.getElementById('base-price').value = 110;
+                document.getElementById('calculation-breakdown').textContent = "";
+            }
+        }
+
+        // Έλεγχος διαθεσιμότητας ημερομηνιών
+        function isDateAvailable(newCheckIn, newCheckOut) {
+            const start = new Date(newCheckIn);
+            const end = new Date(newCheckOut);
+
+            // Έλεγχος επικάλυψης: (StartA < EndB) AND (EndA > StartB)
+            // Αυτό επιτρέπει StartA == EndB (Same day check-in/out)
+            return !bookings.some(b => {
+                const bStart = new Date(b.checkIn);
+                const bEnd = new Date(b.checkOut);
+                return start < bEnd && end > bStart;
+            });
+        }
+
+        function saveBooking(e) {
+            e.preventDefault();
+            const isoIn = toISODate(document.getElementById('check-in').value);
+            const isoOut = toISODate(document.getElementById('check-out').value);
+
+            // Προσθήκη ελέγχου διαθεσιμότητας
+            if (!isDateAvailable(isoIn, isoOut)) {
+                // Χρήση ενός custom message box αντί για alert (όπως ορίζουν οι οδηγίες)
+                const errorMsg = document.createElement('div');
+                errorMsg.className = "fixed top-5 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-6 py-3 rounded-xl shadow-2xl z-[100] font-bold animate-bounce";
+                errorMsg.textContent = "⚠️ Οι ημερομηνίες επικαλύπτονται με υπάρχουσα κράτηση!";
+                document.body.appendChild(errorMsg);
+                setTimeout(() => errorMsg.remove(), 3000);
+                return;
+            }
+
+            bookings.push({
+                id: Date.now(),
+                guestName: document.getElementById('guest-name').value,
+                guestCount: document.getElementById('guest-count').value || 1,
+                checkIn: isoIn,
+                checkOut: isoOut,
+                price: parseFloat(document.getElementById('total-price').value)
+            });
+
+            localStorage.setItem('vacation_bookings_v2', JSON.stringify(bookings));
+            toggleModal(false);
+            renderApp();
+        }
+
+        function deleteBooking(id) {
+            if (confirm("Διαγραφή κράτησης;")) {
+                bookings = bookings.filter(b => b.id !== id);
+                localStorage.setItem('vacation_bookings_v2', JSON.stringify(bookings));
+                renderApp();
+            }
+        }
+
+        function updateStats() {
+            const totalRevenue = bookings.reduce((sum, b) => sum + b.price, 0);
+            const totalNights = bookings.reduce((sum, b) => {
+                const diff = new Date(b.checkOut) - new Date(b.checkIn);
+                return sum + Math.max(1, Math.ceil(diff / 86400000));
+            }, 0);
+            const avgPrice = totalNights > 0 ? (totalRevenue / totalNights).toFixed(2) : 0;
+
+            document.getElementById('stat-revenue').textContent = `€${totalRevenue.toLocaleString()}`;
+            document.getElementById('stat-count').textContent = bookings.length;
+            document.getElementById('stat-nights').textContent = totalNights;
+            document.getElementById('stat-avg').textContent = `€${avgPrice}`;
+            
+            document.getElementById('print-total-revenue').textContent = `€${totalRevenue.toLocaleString()}`;
+            document.getElementById('print-total-count').textContent = bookings.length;
+            document.getElementById('print-total-nights').textContent = totalNights;
+            document.getElementById('print-date').textContent = new Date().toLocaleDateString('el-GR');
+        }
+
+        function renderLists() {
+            const arrivalsContainer = document.getElementById('arrivals-list');
+            const departuresContainer = document.getElementById('departures-list');
+            const printTable = document.getElementById('print-bookings-table');
+            const today = new Date().setHours(0,0,0,0);
+            
+            const arrivals = [...bookings]
+                .filter(b => new Date(b.checkIn) >= today)
+                .sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+
+            arrivalsContainer.innerHTML = arrivals.map(b => `
+                <div class="p-3 bg-blue-50/40 border border-blue-100 rounded-xl relative group">
+                    <div class="flex justify-between items-start">
+                        <h4 class="font-bold text-slate-800 text-xs truncate pr-6">${b.guestName}</h4>
+                        <button onclick="deleteBooking(${b.id})" class="text-slate-300 hover:text-red-500 transition absolute right-2 top-2 opacity-0 group-hover:opacity-100">✕</button>
+                    </div>
+                    <div class="flex justify-between items-center mt-1">
+                         <p class="text-[10px] text-blue-600 font-bold">${formatDateForDisplay(b.checkIn)}</p>
+                         <span class="text-[10px] font-bold text-slate-500">€${b.price.toFixed(0)}</span>
+                    </div>
+                </div>
+            `).join('') || '<div class="text-center py-4 text-slate-400 italic text-xs">Καμία άφιξη</div>';
+
+            const departures = [...bookings]
+                .filter(b => new Date(b.checkOut) >= today)
+                .sort((a, b) => new Date(a.checkOut) - new Date(b.checkOut));
+
+            departuresContainer.innerHTML = departures.map(b => `
+                <div class="p-3 bg-rose-50/40 border border-rose-100 rounded-xl relative group">
+                    <div class="flex justify-between items-start">
+                        <h4 class="font-bold text-slate-800 text-xs truncate pr-6">${b.guestName}</h4>
+                    </div>
+                    <div class="flex justify-between items-center mt-1">
+                         <p class="text-[10px] text-rose-600 font-bold">${formatDateForDisplay(b.checkOut)}</p>
+                         <span class="text-[10px] font-bold text-slate-500">👤 ${b.guestCount} άτομα</span>
+                    </div>
+                </div>
+            `).join('') || '<div class="text-center py-4 text-slate-400 italic text-xs">Καμία αναχώρηση</div>';
+
+            const allSorted = [...bookings].sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+            printTable.innerHTML = allSorted.map(b => `
+                <tr>
+                    <td class="p-4 text-sm font-bold text-slate-800">${b.guestName}</td>
+                    <td class="p-4 text-sm">${formatDateForDisplay(b.checkIn)}</td>
+                    <td class="p-4 text-sm">${formatDateForDisplay(b.checkOut)}</td>
+                    <td class="p-4 text-sm text-center">${b.guestCount}</td>
+                    <td class="p-4 text-sm font-black text-right">€${b.price.toFixed(2)}</td>
+                </tr>
+            `).join('') || '<tr><td colspan="5" class="p-4 text-center">Δεν υπάρχουν καταχωρημένες κρατήσεις.</td></tr>';
+        }
+
+        function renderCalendar() {
+            const calendarBody = document.getElementById('calendar-body');
+            const monthDisplay = document.getElementById('current-month-display');
+            if(!calendarBody) return;
+            
+            calendarBody.innerHTML = '';
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const labelText = `${monthNames[month]} ${year}`;
+            
+            monthDisplay.textContent = labelText;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            for (let i = 0; i < (firstDay === 0 ? 6 : firstDay - 1); i++) {
+                calendarBody.innerHTML += `<div class="day-cell bg-slate-50/50"></div>`;
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isToday = dateStr === todayStr;
+                const booking = bookings.find(b => dateStr >= b.checkIn && dateStr < b.checkOut);
+                const isCheckIn = bookings.some(b => b.checkIn === dateStr);
+                const isCheckOut = bookings.some(b => b.checkOut === dateStr);
+                
+                let classes = isToday ? 'today ' : '';
+                if(booking) classes += 'booked ';
+                if(isCheckIn) classes += 'check-in-today ';
+                if(isCheckOut) classes += 'check-out-today ';
+
+                calendarBody.innerHTML += `
+                    <div class="day-cell ${classes} p-2 flex flex-col">
+                        <span class="text-xs font-semibold ${isToday ? 'text-blue-600' : 'text-slate-400'}">${day}</span>
+                        ${booking ? `
+                            <div class="text-[9px] font-bold text-green-700 truncate mt-1 leading-tight">${booking.guestName}</div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+        }
+
+        function changeMonth(delta) {
+            currentDate.setMonth(currentDate.getMonth() + delta);
+            renderApp();
+        }
+
+        function renderApp() {
+            renderCalendar();
+            renderLists();
+            updateStats();
+        }
+
+        window.onload = function() {
+            initDatePickers();
+            renderApp();
+        };
+    </script>
+</body>
+</html>
