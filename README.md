@@ -18,5 +18,5 @@ Booking Manager is a powerful web app designed to help Vacation Rental Hosts to 
 = Booking Channeling with other platforms( Airbnb, Booking.com, VRBO)
 - Database Connection
 
-- ## Disclaimer:
+## Disclaimer:
 - As of now, the data that is inserted in the web interface is saved in the local storage of your browser. Deleting your browser's cache, will delete the data as well.
